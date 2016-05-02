@@ -4,12 +4,13 @@ import curr from 'curr';
 import * as R from 'ramda';
 import util from 'util';
 
-const Amount = (top, left, amount) => box({
+const Amount = (top, left, amount, dirty) => box({
     top, left,
     height: 1,
     width: 12,
     align: 'right',
-    fg: (amount < 0) ? '#FF0000' : 'white',
+    fg: dirty ? 'white' : (amount < 0) ? 'red' : 'green',
+    bg: dirty ? 'blue' : 'black',
     tags: true,
     content: '€ ' + curr(
         amount / 100,
@@ -26,29 +27,34 @@ export default function({Terminal, Model, props$, keys$}) {
 
     const amount$ = keys$
       .filter(
-          x => R.contains(x, ['backspace','delete','-','0','1','2','3','4','5','6','7','8','9'])
+          x => R.contains(x, ['escape', 'backspace','delete','-','0','1','2','3','4','5','6','7','8','9'])
         )
       .withLatestFrom(
         Model,
         (key, state) => {
-          return [key, state.pending.toString()]
+          return [key, state.pending.toString(), state.current.toString()]
         })
-      .map(([key, chars]) => {
+      .map(([key, pending, current]) => {
+        if (key == 'escape') {
+          return current;
+        }
         if (key == '-') {
-          return R.concat('-', chars);
+          return R.concat('-', pending);
         }
         if (key == 'backspace') {
-          if (chars.length == 1) {
+          if (pending.length == 1) {
             return '0';
           }
-          return chars.slice(0, -1);
+          return pending.slice(0, -1);
         }
         if (key == 'delete') {
           return '0';
         }
-        return R.concat(chars, key);
+        return R.concat(pending, key);
       })
+      // http://stackoverflow.com/questions/16880327/why-am-i-getting-weird-result-using-parseint-in-node-js-different-result-from
       .map(x => parseInt(x, 10))
+      .distinctUntilChanged()
       .publish();
 
     const pendingMod$ = amount$
@@ -68,7 +74,8 @@ export default function({Terminal, Model, props$, keys$}) {
 
     const gui$ = O.combineLatest(
         Model, props$,
-        (state, props) => Amount(props.top, props.left, state.pending));
+        (state, props) => Amount(props.top, props.left, state.pending, state.pending !== state.current)
+    );
 
     return {
         Terminal: gui$,
