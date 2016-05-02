@@ -61,13 +61,13 @@ run(({ term, M }) => {
     const amountInputs = [
       AmountInput({
         keys$,
-        Model: M.lens(0),
+        Model: M.lens(L.compose(L.prop('envelopes'), L.index(0))),
         Terminal: term,
         props$: O.of({left: 30, top: 2})
       }),
       AmountInput({
         keys$,
-        Model: M.lens(1),
+        Model: M.lens(L.compose(L.prop('envelopes'), L.index(1))),
         Terminal: term,
         props$: O.of({left: 30, top: 1})
       })
@@ -82,7 +82,7 @@ run(({ term, M }) => {
             left: 1,
             width: '100%',
             height: '100%',
-            bg: 'cyan',
+            bg: 'grey',
             border: true
           },
           inputs
@@ -100,20 +100,22 @@ run(({ term, M }) => {
     term: makeTermDriver(screen),
     exit: exit$ => exit$.forEach(::process.exit),
     M: Model(
-      [
-        {
-          'id': 1,
-          'current': 123,
-          'pending': 123
-        },
-        {
-          'id': 2,
-          'current': 456,
-          'pending': 456
-        }
-      ],
       {
-        logging: true,
+        envelopes: [
+          {
+            'id': 1,
+            'current': 123,
+            'pending': 123
+          },
+          {
+            'id': 2,
+            'current': 456,
+            'pending': 456
+          }
+        ]
+      },
+      {
+        logging: false,
         info: (...args) => console.info(...args)
       }
     )
