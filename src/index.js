@@ -56,28 +56,65 @@ let Table = (top, left, envelopes) => box(
 run(({ term, M }) => {
 
     const state$ = M;
-    state$.forEach(console.log);
-
     const keys$ = term.on('keypress').pluck(1, 'full').publish();
 
-    const amountInput = AmountInput({
-        Model: M,
+    const amountInputs = [
+      AmountInput({
+        keys$,
+        Model: M.lens(0),
         Terminal: term,
-        props$: O.of({left: 1, top: 1})
-    });
+        props$: O.of({left: 30, top: 2})
+      }),
+      AmountInput({
+        keys$,
+        Model: M.lens(1),
+        Terminal: term,
+        props$: O.of({left: 30, top: 1})
+      })
+    ];
+
+    const amountInputs$ = O
+      .combineLatest(amountInputs.map(x => x.Terminal))
+      .map(inputs =>
+        box(
+          {
+            top: 1,
+            left: 1,
+            width: '100%',
+            height: '100%',
+            bg: 'cyan',
+            border: true
+          },
+          inputs
+        )
+      );
 
     keys$.connect();
 
     return {
-        term: amountInput.Terminal,
+        term: amountInputs$,
         exit: term.on('key C-c'),
-        M: amountInput.Model
+        M: O.merge(amountInputs.map(x => x.Model))
     }
 }, {
     term: makeTermDriver(screen),
     exit: exit$ => exit$.forEach(::process.exit),
-    M: Model({
-        'current': null,
-        'pending': null
-    })
+    M: Model(
+      [
+        {
+          'id': 1,
+          'current': 123,
+          'pending': 123
+        },
+        {
+          'id': 2,
+          'current': 456,
+          'pending': 456
+        }
+      ],
+      {
+        logging: true,
+        info: (...args) => console.info(...args)
+      }
+    )
 });

@@ -2,6 +2,7 @@ import {Observable as O} from "rx";
 import { box, textarea, text, button } from 'cycle-blessed';
 import curr from 'curr';
 import * as R from 'ramda';
+import util from 'util';
 
 const Amount = (top, left, amount) => box({
     top, left,
@@ -21,36 +22,37 @@ const Amount = (top, left, amount) => box({
         }).pval
 });
 
-export default function({Terminal, Model, props$}) {
-
-    const keys$ = Terminal.on('keypress').pluck(1, 'full').publish();
+export default function({Terminal, Model, props$, keys$}) {
 
     const amount$ = keys$
-        .filter(
-            x => R.contains(x, ['backspace','delete','-','0','1','2','3','4','5','6','7','8','9'])
+      .filter(
+          x => R.contains(x, ['backspace','delete','-','0','1','2','3','4','5','6','7','8','9'])
         )
-        .scan(
-            (a, x) => {
-                if (x == '-') {
-                    return R.concat('-', a);
-                }
-                if (x == 'backspace') {
-                    if (a.length == 1) {
-                        return '0';
-                    }
-                    return a.slice(0, -1);
-                }
-                if (x == 'delete') {
-                    return '0';
-                }
-                return R.concat(a, x);
-            },
-            ''
-        )
-        .map(x => parseInt(x));
+      .withLatestFrom(
+        Model,
+        (key, state) => {
+          return [key, state.pending.toString()]
+        })
+      .map(([key, chars]) => {
+        if (key == '-') {
+          return R.concat('-', chars);
+        }
+        if (key == 'backspace') {
+          if (chars.length == 1) {
+            return '0';
+          }
+          return chars.slice(0, -1);
+        }
+        if (key == 'delete') {
+          return '0';
+        }
+        return R.concat(chars, key);
+      })
+      .map(x => parseInt(x, 10))
+      .publish();
 
     const pendingMod$ = amount$
-        .map(x => state => ({...state}) => ({...state, pending: x}));
+        .map(x => state => ({...state, pending: x}));
 
     const currentMod$ = O
         .combineLatest(
@@ -60,13 +62,13 @@ export default function({Terminal, Model, props$}) {
         )
         .filter(x => x !== false)
         .distinctUntilChanged()
-        .map(x => state => ({...state}) => ({...state, current: x}));
+        .map(x => state => ({...state, current: x}));
+
+    amount$.connect();
 
     const gui$ = O.combineLatest(
-        amount$, props$,
-        (amount, props) => Amount(props.top, props.left, amount));
-
-    keys$.connect();
+        Model, props$,
+        (state, props) => Amount(props.top, props.left, state.pending));
 
     return {
         Terminal: gui$,
