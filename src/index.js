@@ -55,46 +55,33 @@ let Table = (top, left, envelopes) => box(
 
 run(({ term, M }) => {
 
-    const state$ = M;
     const keys$ = term.on('keypress').pluck(1, 'full').publish();
 
-    const amountInputs = [
-      AmountInput({
-        keys$,
-        Model: M.lens(L.compose(L.prop('envelopes'), L.index(0))),
-        Terminal: term,
-        props$: O.of({left: 30, top: 2})
-      }),
-      AmountInput({
-        keys$,
-        Model: M.lens(L.compose(L.prop('envelopes'), L.index(1))),
-        Terminal: term,
-        props$: O.of({left: 30, top: 1})
-      })
-    ];
-
-    const amountInputs$ = O
-      .combineLatest(amountInputs.map(x => x.Terminal))
-      .map(inputs =>
-        box(
-          {
-            top: 1,
-            left: 1,
-            width: '100%',
-            height: '100%',
-            bg: 'grey',
-            border: true
-          },
-          inputs
-        )
-      );
+    const amountInputs$ = M.lens('envelopes').liftListById((id, amountInput$) =>
+        AmountInput({Model: amountInput$, props$: O.of({left: 30, top: id}), keys$})
+    );
 
     keys$.connect();
 
+    //flatMerge(amountInputs$, "Events").Events.forEach(console.log);
+
     return {
-        term: amountInputs$,
+        term: flatCombine(amountInputs$, "Terminal").Terminal
+          .map(inputs =>
+            box(
+              {
+                top: 1,
+                left: 1,
+                width: '100%',
+                height: '100%',
+                bg: 'grey',
+                border: true
+              },
+              inputs
+            )
+          ),
         exit: term.on('key C-c'),
-        M: O.merge(amountInputs.map(x => x.Model))
+        M: flatMerge(amountInputs$, "Model").Model
     }
 }, {
     term: makeTermDriver(screen),

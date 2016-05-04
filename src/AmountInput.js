@@ -32,7 +32,7 @@ const Amount = (top, left, amount, dirty) => box({
         }).pval
 });
 
-export default function({Terminal, Model, props$, keys$}) {
+export default function({Model, props$, keys$}) {
 
     const amount$ = keys$
       .filter(x => R.contains(x, ['escape', 'backspace','delete','-','0','1','2','3','4','5','6','7','8','9']))
