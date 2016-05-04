@@ -4,6 +4,15 @@ import curr from 'curr';
 import * as R from 'ramda';
 import util from 'util';
 
+const SetCurrentAmount = ({id, amount}) => ({
+  EVENT: 'SET_CURRENT_AMOUNT', id, amount
+});
+
+const SetPendingAmount = ({id, amount}) => ({
+  EVENT: 'SET_PENDING_AMOUNT', id, amount
+});
+
+
 const Amount = (top, left, amount, dirty) => box({
     top, left,
     height: 1,
@@ -26,14 +35,8 @@ const Amount = (top, left, amount, dirty) => box({
 export default function({Terminal, Model, props$, keys$}) {
 
     const amount$ = keys$
-      .filter(
-          x => R.contains(x, ['escape', 'backspace','delete','-','0','1','2','3','4','5','6','7','8','9'])
-        )
-      .withLatestFrom(
-        Model,
-        (key, state) => {
-          return [key, state.pending.toString(), state.current.toString()]
-        })
+      .filter(x => R.contains(x, ['escape', 'backspace','delete','-','0','1','2','3','4','5','6','7','8','9']))
+      .withLatestFrom(Model, (key, state) => [key, state.pending.toString(), state.current.toString()])
       .map(([key, pending, current]) => {
         if (key == 'escape') {
           return current;
@@ -57,18 +60,13 @@ export default function({Terminal, Model, props$, keys$}) {
       .distinctUntilChanged()
       .publish();
 
-    const pendingMod$ = amount$
-        .map(x => state => ({...state, pending: x}));
+    const enteredAmount$ = amount$.sample(keys$.filter(x => x == 'enter')).distinctUntilChanged();
 
-    const currentMod$ = O
-        .combineLatest(
-            keys$.map(x => x == 'enter'),
-            amount$,
-            (enter, amount) => enter ? amount : false
-        )
-        .filter(x => x !== false)
-        .distinctUntilChanged()
-        .map(x => state => ({...state, current: x}));
+    const currentMod$ = enteredAmount$.map(x => state => ({...state, current: x}));
+    const pendingMod$ = amount$.map(x => state => ({...state, pending: x}));
+
+    const currentEvent$ = enteredAmount$.withLatestFrom(Model, (amount, model) => SetCurrentAmount({id: model.id, amount}));
+    const pendingEvent$ = amount$.withLatestFrom(Model, (amount, model) => SetPendingAmount({id: model.id, amount}));
 
     amount$.connect();
 
@@ -79,6 +77,7 @@ export default function({Terminal, Model, props$, keys$}) {
 
     return {
         Terminal: gui$,
-        Model: O.merge(Model.mod(pendingMod$), Model.mod(currentMod$))
+        Model: O.merge(Model.mod(pendingMod$), Model.mod(currentMod$)),
+        Events: O.merge(currentEvent$, pendingEvent$)
     }
 }
