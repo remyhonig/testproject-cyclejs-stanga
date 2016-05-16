@@ -56,17 +56,50 @@ let Table = (top, left, envelopes) => box(
 run(({ term, M }) => {
 
   const keys$ = term.on('keypress').pluck(1, 'full').publish();
+  const repaint$ = O.just(true).sample(keys$).startWith(true);
+
+  const inputFocus$ = keys$
+    .filter(x => R.contains(x, ["up", "down"]))
+    .scan((currentValue, key) => {
+      if (key == "down") {
+        return ++currentValue;
+      }
+      if (key == "up") {
+        return --currentValue;
+      }
+    }, 1)
+    .startWith(1);
+
+  const focusedKeys$ = keys$.withLatestFrom(inputFocus$);
+
+  const createFocusedKey$ = id => focusedKeys$
+      .filter(([key, focusedId]) => {
+        return id == focusedId;
+      })
+      .pluck(0);
+
+
+  const createIsFocused = id => inputFocus$.map(componentId => componentId == id);
 
   const amountInputs$ = M.lens('envelopes').liftListById((id, amountInput$) =>
-    AmountInput({Model: amountInput$, props$: O.of({left: 30, top: id}), keys$})
+    AmountInput({
+      Model: amountInput$,
+      props$: O.of({left: 30, top: id}),
+      keys$: createFocusedKey$(id),
+      repaint$,
+      focus$: createIsFocused(id)
+    })
   );
 
   keys$.connect();
 
-  //flatMerge(amountInputs$, "Events").Events.forEach(console.log);
+  var amountInputSinks = flatMerge(amountInputs$, "Model", "Events");
+  //amountInputSinks.Events.forEach(console.log);
+
+  var terminalOutput$ = flatCombine(amountInputs$, "Terminal").Terminal;
 
   return {
-    term: flatCombine(amountInputs$, "Terminal").Terminal
+    term: terminalOutput$
       .map(inputs =>
         box(
           {
@@ -81,7 +114,7 @@ run(({ term, M }) => {
         )
       ),
     exit: term.on('key C-c'),
-    M: flatMerge(amountInputs$, "Model").Model
+    M: amountInputSinks.Model
   }
 }, {
   term: makeTermDriver(screen),
@@ -96,6 +129,11 @@ run(({ term, M }) => {
         },
         {
           'id': 2,
+          'current': 456,
+          'pending': 456
+        },
+        {
+          'id': 3,
           'current': 456,
           'pending': 456
         }
